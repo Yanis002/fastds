@@ -1,0 +1,5 @@
+[environment]
+extra-paths = [
+    "..", # fixes relative imports
+    ".vscode/5.0/", # https://github.com/Korchy/blender_autocomplete
+]
