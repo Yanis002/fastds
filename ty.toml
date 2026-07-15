@@ -1,5 +1,9 @@
 [environment]
 extra-paths = [
     "..", # fixes relative imports
-    ".vscode/5.0/", # https://github.com/Korchy/blender_autocomplete
+    # ".vscode/5.0/", # https://github.com/Korchy/blender_autocomplete, uncomment if not using `fake-bpy-module`
 ]
+
+[rules]
+invalid-type-form = "ignore" # disable errors for things like `foo: IntProperty(...)`
+unresolved-attribute = "ignore" # disable errors for things like `bpy.types.Scene.foo = IntProperty(...)`
