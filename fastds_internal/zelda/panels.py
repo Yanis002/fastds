@@ -1,17 +1,6 @@
-from bpy.types import Panel
-
 from .properties import Zelda_SceneProperties
-
-
-class Zelda_Panel(Panel):
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "PH/ST"
-    bl_options = {"DEFAULT_CLOSED"}
-
-    @classmethod
-    def poll(cls, context):
-        return context.scene.fastds.game_mode == "Zelda"
+from .zcb import Zelda_ZCBPanel
+from .utility import Zelda_Panel
 
 
 class Zelda_WorkspacePanel(Zelda_Panel):
@@ -28,4 +17,5 @@ class Zelda_WorkspacePanel(Zelda_Panel):
 
 zelda_panels_to_register = [
     Zelda_WorkspacePanel,
+    Zelda_ZCBPanel,
 ]

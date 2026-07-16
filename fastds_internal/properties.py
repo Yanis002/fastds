@@ -25,5 +25,5 @@ props_to_register = zelda_props_to_register + [
 ]
 
 ptr_to_register = [
-    PointerPropertyRegisterInfo("Scene", FastDS_SceneProperties, "fastds", "FastDS Scene Properties")
+    PointerPropertyRegisterInfo("Scene", FastDS_SceneProperties, "fastds", "FastDS Scene Properties"),
 ]

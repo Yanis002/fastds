@@ -5,6 +5,7 @@ from bpy.utils import register_class, unregister_class
 from .updater import addon_updater_ops
 from .fastds_internal.panels import panels_to_register
 from .fastds_internal.properties import props_to_register, ptr_to_register
+from .fastds_internal.operators import ops_to_register
 
 # info about add on
 bl_info = {
@@ -37,7 +38,7 @@ def after_load_impl():
     pass
 
 
-to_register = panels_to_register + props_to_register
+to_register = panels_to_register + props_to_register + ops_to_register
 
 # called on add-on enabling
 # register operators and panels here

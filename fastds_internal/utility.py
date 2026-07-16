@@ -1,6 +1,9 @@
+import math
+
 from typing import Any
 from bpy.types import UILayout
 from dataclasses import dataclass
+from mathutils import Quaternion
 
 
 class PluginError(Exception):
@@ -30,8 +33,19 @@ class PointerPropertyRegisterInfo:
     desc: str
 
 
+@dataclass
+class VecFx32:
+    x: int
+    y: int
+    z: int
+
+
 # default indentation to use when writing to decomp files
 indent = " " * 4
+
+
+y_up_to_z_up = Quaternion((1, 0, 0), math.radians(90.0))
+yUpToZUp = y_up_to_z_up.to_matrix().to_4x4()
 
 
 def prop_split(layout: UILayout, data: Any, property: str, name: str, **prop_kwargs):

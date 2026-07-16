@@ -7,3 +7,4 @@ extra-paths = [
 [rules]
 invalid-type-form = "ignore" # disable errors for things like `foo: IntProperty(...)`
 unresolved-attribute = "ignore" # disable errors for things like `bpy.types.Scene.foo = IntProperty(...)`
+invalid-assignment = "ignore" # disable errors for things like `foo: Bar = layout.operator(Bar.bl_idname)`
