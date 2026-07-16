@@ -25,6 +25,7 @@ class FastDS_MaterialProperties(PropertyGroup):
 
     zelda: PointerProperty(name="Zelda Material Properties", type=Zelda_MaterialProperties)
 
+
 props_to_register = zelda_props_to_register + [
     FastDS_SceneProperties,
     FastDS_MaterialProperties,

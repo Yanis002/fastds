@@ -40,6 +40,7 @@ def after_load_impl():
 
 to_register = panels_to_register + props_to_register + ops_to_register
 
+
 # called on add-on enabling
 # register operators and panels here
 # append menu layout drawing function to an existing window
@@ -65,7 +66,11 @@ def register():
         register_class(cls)
 
     for infos in ptr_to_register:
-        setattr(getattr(bpy.types, infos.target_type), infos.name, bpy.props.PointerProperty(type=infos.target_class, name=infos.desc))
+        setattr(
+            getattr(bpy.types, infos.target_type),
+            infos.name,
+            bpy.props.PointerProperty(type=infos.target_class, name=infos.desc),
+        )
 
     bpy.app.handlers.load_post.append(after_load)
 
