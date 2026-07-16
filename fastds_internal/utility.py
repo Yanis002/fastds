@@ -52,3 +52,10 @@ def prop_split(layout: UILayout, data: Any, property: str, name: str, **prop_kwa
     split = layout.split(factor=0.5)
     split.label(text=name)
     split.prop(data, property, text="", **prop_kwargs)
+
+
+def get_enum_name(items, value):
+    for enum_tuple in items:
+        if enum_tuple[0] == value:
+            return enum_tuple[1]
+    raise PluginError("Could not find enum value " + str(value))

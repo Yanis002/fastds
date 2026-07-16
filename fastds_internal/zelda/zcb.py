@@ -2,13 +2,15 @@ import struct
 import bpy
 import random
 
-from bpy.types import PropertyGroup, UILayout, Operator, Material
-from bpy.props import StringProperty
+from bpy.types import PropertyGroup, UILayout, Operator, Material, Context
+from bpy.props import StringProperty, EnumProperty
 from pathlib import Path
 from mathutils import Vector, Color
 from dataclasses import dataclass
 
-from .utility import Zelda_Panel
+from ...ndspy import lz10 as LZSS, narc
+
+from .utility import Zelda_Panel, get_scene_enum, get_extract_dir
 from ..utility import PluginError, VecFx32, prop_split, yUpToZUp
 from ..materials import get_new_material_color
 
@@ -36,13 +38,17 @@ class ZCBSectionHeader:
     def __init__(self, raw_data: bytes):
         self.raw_data = raw_data
 
-        raw_type, raw_size, raw_num_entries, raw_unk_0A, raw_unk_0B = struct.unpack(ZCBSectionHeader.fmt, self.raw_data)
+        if self.raw_data[0x00:0x04] == b"BDRG":
+            raw_type, raw_size, raw_num_entries, raw_unk_0A = struct.unpack("<4sIHH", self.raw_data)
+            raw_unk_0B = None
+        else:
+            raw_type, raw_size, raw_num_entries, raw_unk_0A, raw_unk_0B = struct.unpack(ZCBSectionHeader.fmt, self.raw_data)
 
         self.type: str = raw_type[::-1].decode("utf-8")
         self.size: int = raw_size
         self.num_entries: int = raw_num_entries
         self.unk_0A: int = raw_unk_0A
-        self.unk_0B: int = raw_unk_0B
+        self.unk_0B: int | None = raw_unk_0B
 
 
 class ZCBVertices:
@@ -164,13 +170,39 @@ class ZCBTriangles:
         return indices
 
 
-# TODO
 class ZCBGrid:
-    fmt = "<"
+    @dataclass
+    class Entry:
+        index: int
+        count: int
+        entries: list[int]
 
     def __init__(self, raw_data: bytes, header: ZCBSectionHeader):
         self.header = header
         self.raw_data = raw_data[0x0C : self.header.size]
+        self.entries: list[ZCBGrid.Entry] = []
+
+        width = self.header.size
+        height = self.header.unk_0A
+
+        offset = 0x00
+
+        for i in range(width):
+            for j in range(height):
+                count = struct.unpack("<H", self.raw_data[offset : offset + 0x02])[0]
+                offset += 0x02
+
+                end = offset + count * 0x02
+
+                if end >= len(self.raw_data):
+                    print(f"WARNING: impossible read at {i};{j};0x{offset:04X}, stopping the iteration here.")
+                    return
+
+                entries = list(struct.unpack(f"<{'H' * count}", self.raw_data[offset:end]))
+                self.entries.append(ZCBGrid.Entry(j * width + i, count, entries[:]))
+
+                aligned_count = (count + 3) & ~3
+                offset += aligned_count
 
     def is_valid(self):
         return self.header.type == "GRDB"
@@ -179,13 +211,18 @@ class ZCBGrid:
 class ZCBFile:
     fmt_header = "<4s4sII"
 
-    def __init__(self, path: Path):
-        self.path = path.resolve()
+    def __init__(self, path: Path | None, raw_data: bytes | None):
+        self.path = path.resolve() if path is not None else None
 
-        if not self.path.exists():
-            raise PluginError("ERROR: invalid ZCB file path.")
+        if self.path is not None:
+            if not self.path.exists():
+                raise PluginError("ERROR: invalid ZCB file path.")
+            self.raw_data = self.path.read_bytes()
+        elif raw_data is not None:
+            self.raw_data = raw_data
+        else:
+            raise PluginError("ERROR: unexpected issue occurred.")
 
-        self.raw_data = self.path.read_bytes()
         self.header = ZCBHeader(self.raw_data[0x00:0x10])
 
         if not self.header.is_valid():
@@ -225,18 +262,47 @@ class ZCBFile:
         if bpy.context.scene.fastds.zelda.game == "PH":
             return (
                 self.vertices is not None
+                and self.vertices.is_valid()
                 and self.polyclasses is not None
+                and self.polyclasses.is_valid()
                 and self.triangles is not None
+                and self.triangles.is_valid()
                 and self.grid is not None
+                and self.grid.is_valid()
             )
         else:
             return (
                 self.vertices is not None
+                and self.vertices.is_valid()
                 and self.normals is not None
+                and self.normals.is_valid()
                 and self.polyclasses is not None
+                and self.polyclasses.is_valid()
                 and self.triangles is not None
+                and self.triangles.is_valid()
                 and self.grid is not None
+                and self.grid.is_valid()
             )
+
+
+def get_zcb(lzss_path: Path):
+    assert lzss_path.exists()
+
+    lzss_bytes = LZSS.decompressFromFile(lzss_path)
+    archive = narc.NARC(lzss_bytes)
+
+    found_file = None
+    filename = None
+    for i, file in enumerate(archive.files):
+        if file.startswith(b"BLCM1BCZ"):
+            found_file = file
+            filename = str(archive.filenames[i])
+            break
+
+    if found_file is not None and filename is not None:
+        return lzss_bytes, archive, found_file, filename
+
+    raise ValueError("ERROR: unexpected result")
 
 
 class Zelda_DoImportZCB(Operator):
@@ -244,27 +310,43 @@ class Zelda_DoImportZCB(Operator):
     bl_label = "Import ZCB"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
-    path: StringProperty()
+    scene: StringProperty()
+    path: StringProperty(default="None")
 
-    def execute(self, context):
-        file = ZCBFile(Path(self.path))
+    def execute(self, context: Context):
+        def do_import(file: ZCBFile, prefix: str):
+            col_name = f"{prefix}_collision"
+            new_mesh = bpy.data.meshes.new(col_name)
+            new_obj = bpy.data.objects.new(col_name, new_mesh)
+            context.scene.collection.objects.link(new_obj)
 
-        col_name = f"{file.path.stem}_collision"
-        new_mesh = bpy.data.meshes.new(col_name)
-        new_obj = bpy.data.objects.new(col_name, new_mesh)
-        bpy.context.scene.collection.objects.link(new_obj)
+            for i, entry in enumerate(file.polyclasses.entries):
+                if entry.material is None:
+                    entry.create_material(i)
 
-        for i, entry in enumerate(file.polyclasses.entries):
-            if entry.material is None:
-                entry.create_material(i)
+                new_mesh.materials.append(entry.material)
 
-            new_mesh.materials.append(entry.material)
+            new_mesh.from_pydata(vertices=file.vertices.entries, edges=[], faces=file.triangles.get_indices())
 
-        new_mesh.from_pydata(vertices=file.vertices.entries, edges=[], faces=file.triangles.get_indices())
+            assert len(new_mesh.polygons) == len(file.triangles.entries), "wrong list lengths"
+            for i in range(len(new_mesh.polygons)):
+                new_mesh.polygons[i].material_index = file.triangles.entries[i].index_polyclass
 
-        assert len(new_mesh.polygons) == len(file.triangles.entries), "wrong list lengths"
-        for i in range(len(new_mesh.polygons)):
-            new_mesh.polygons[i].material_index = file.triangles.entries[i].index_polyclass
+        if self.path == "None":
+            extract_dir = get_extract_dir(strictly_decomp=True)
+            assert extract_dir is not None, "unexpected error"
+
+            map_dir: Path = extract_dir / "files" / "Map" / self.scene
+            assert map_dir.exists()
+
+            for lzss_path in map_dir.rglob("map*.bin"):
+                lzss_bytes, archive, zcb_data, zcb_filename = get_zcb(lzss_path)
+
+                file = ZCBFile(None, zcb_data)
+                do_import(file, lzss_path.stem)
+        else:
+            file = ZCBFile(Path(self.path), None)
+            do_import(file, file.path.stem)
 
         self.report({"INFO"}, "Success!")
         return {"FINISHED"}
@@ -275,7 +357,7 @@ class Zelda_DoExportZCB(Operator):
     bl_label = "Export ZCB"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
-    path: StringProperty()
+    path: StringProperty(default="None")
 
     def execute(self, context):
         self.report({"INFO"}, "Not implemented yet.")
@@ -284,36 +366,56 @@ class Zelda_DoExportZCB(Operator):
 
 class Zelda_ZCBImportSettings(PropertyGroup):
     path: StringProperty(description="Path to the ZCB file", subtype="FILE_PATH")
+    scene: EnumProperty(items=lambda self, context: get_scene_enum(context), default=1)
 
     def draw_props(self, layout: UILayout):
+        from .operators import Zelda_SearchSceneOperator
+
         layout = layout.box()
         layout.box().label(text="Import Settings")
 
-        prop_split(layout, self, "path", "Path")
+        Zelda_SearchSceneOperator.draw_op(layout, self.scene, "import")
 
-        path = Path(self.path).resolve()
+        if self.scene == "Custom":
+            prop_split(layout, self, "path", "Path")
 
-        if not path.exists():
-            layout.label(text="This path doesn't exist.", icon="ERROR")
-        elif len(self.path) > 0 and path.read_bytes()[0x00:0x08] != b"BLCM1BCZ":
-            layout.label(text="Invalid ZCB file.", icon="ERROR")
+            path = Path(self.path).resolve()
+
+            if not path.exists():
+                layout.label(text="This path doesn't exist.", icon="ERROR")
+            elif len(self.path) > 0 and path.read_bytes()[0x00:0x08] != b"BLCM1BCZ":
+                layout.label(text="Invalid ZCB file.", icon="ERROR")
 
         import_op = layout.operator(Zelda_DoImportZCB.bl_idname)
-        import_op.path = self.path
+
+        if self.scene == "Custom":
+            import_op.path = self.path
+        else:
+            import_op.scene = self.scene
 
 
 class Zelda_ZCBExportSettings(PropertyGroup):
     path: StringProperty(description="Path to the ZCB file", subtype="FILE_PATH")
+    scene: EnumProperty(items=lambda self, context: get_scene_enum(context), default=1)
 
     def draw_props(self, layout: UILayout):
+        from .operators import Zelda_SearchSceneOperator
+
         layout = layout.box()
         layout.enabled = False
         layout.box().label(text="Export Settings")
 
-        prop_split(layout, self, "path", "Path")
+        Zelda_SearchSceneOperator.draw_op(layout, self.scene, "export")
+
+        if self.scene == "Custom":
+            prop_split(layout, self, "path", "Path")
 
         export_op = layout.operator(Zelda_DoExportZCB.bl_idname)
-        export_op.path = self.path
+
+        if self.scene == "Custom":
+            export_op.path = self.path
+        else:
+            export_op.path = ""
 
 
 class Zelda_ZCBPanel(Zelda_Panel):
@@ -339,9 +441,3 @@ class Zelda_PolyClassProperties(PropertyGroup):
         layout.box().label(text="Polygon Class Settings")
 
         prop_split(layout, self, "raw_data", "Raw Data")
-
-
-zelda_ops_to_register = [
-    Zelda_DoImportZCB,
-    Zelda_DoExportZCB,
-]

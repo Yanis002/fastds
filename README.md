@@ -9,3 +9,9 @@ WIP!
 ## Developement
 
 We recommend using Astral's `ty` and `ruff` for linting/formatting Python files.
+
+## Credits
+
+Inspired by [Fast64](https://github.com/fast-64/fast64).
+
+Made with ♥ by me.
