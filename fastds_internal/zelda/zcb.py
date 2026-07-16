@@ -66,29 +66,50 @@ class ZCBVertices:
 
 
 class ZCBNormals:
-    fmt = "<"
+    fmt = "<HHH"
+
+    @dataclass
+    class Entry:
+        unk_00: int
+        unk_02: int
+        unk_04: int
 
     def __init__(self, raw_data: bytes, header: ZCBSectionHeader):
         self.header = header
         self.raw_data = raw_data[0x0C : self.header.size]
+        self.entries: list[ZCBNormals.Entry] = []
+
+        offset = 0x00
+        for _ in range(header.num_entries):
+            unk_00, unk_02, unk_04 = struct.unpack(ZCBNormals.fmt, self.raw_data[offset : offset + 0x06])
+            self.entries.append(ZCBNormals.Entry(unk_00, unk_02, unk_04))
+            offset += 0x06
 
     def is_valid(self):
         return self.header.type == "NRMB"
 
 
 class ZCBPolyClasses:
-    fmt = "<"
+    fmt = "<I"
 
     def __init__(self, raw_data: bytes, header: ZCBSectionHeader):
         self.header = header
         self.raw_data = raw_data[0x0C : self.header.size]
+        self.entries: list[int] = []
+
+        offset = 0x00
+        for _ in range(header.num_entries):
+            entry: int = struct.unpack(ZCBPolyClasses.fmt, self.raw_data[offset : offset + 0x04])
+            self.entries.append(entry)
+            offset += 0x04
 
     def is_valid(self):
         return self.header.type == "PCLB"
 
 
 class ZCBTriangles:
-    fmt = "<HHHH"
+    fmt_ph = "<HHHH"
+    fmt_st = "<HHHHHHHH"
 
     @dataclass
     class Entry:
@@ -100,11 +121,23 @@ class ZCBTriangles:
         self.raw_data = raw_data[0x0C : self.header.size]
         self.entries: list[ZCBTriangles.Entry] = []
 
+        if bpy.context.scene.fastds.zelda.game == "PH":
+            entry_size = 0x08
+        else:
+            entry_size = 0x10
+
         offset = 0x00
         for _ in range(header.num_entries):
-            x, y, z, polyclass = struct.unpack(ZCBTriangles.fmt, self.raw_data[offset : offset + 0x08])
+            if bpy.context.scene.fastds.zelda.game == "PH":
+                unk_08 = unk_0A = unk_0C = None
+                x, y, z, polyclass = struct.unpack(ZCBTriangles.fmt_ph, self.raw_data[offset : offset + entry_size])
+            else:
+                x, y, z, polyclass, unk_08, unk_0A, unk_0C, unk_0E = struct.unpack(
+                    ZCBTriangles.fmt_st, self.raw_data[offset : offset + entry_size]
+                )
+
             self.entries.append(ZCBTriangles.Entry([x, y, z], polyclass))
-            offset += 0x08
+            offset += entry_size
 
     def is_valid(self):
         return self.header.type == "TRIB"
@@ -118,6 +151,7 @@ class ZCBTriangles:
         return indices
 
 
+# TODO
 class ZCBGrid:
     fmt = "<"
 
@@ -220,7 +254,7 @@ class Zelda_DoExportZCB(Operator):
     path: StringProperty()
 
     def execute(self, context):
-        self.report({"INFO"}, "Success!")
+        self.report({"INFO"}, "Not implemented yet.")
         return {"FINISHED"}
 
 
@@ -249,6 +283,7 @@ class Zelda_ZCBExportSettings(PropertyGroup):
 
     def draw_props(self, layout: UILayout):
         layout = layout.box()
+        layout.enabled = False
         layout.box().label(text="Export Settings")
 
         prop_split(layout, self, "path", "Path")
