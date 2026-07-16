@@ -1,14 +1,16 @@
 import struct
 import bpy
+import random
 
-from bpy.types import PropertyGroup, UILayout, Operator
+from bpy.types import PropertyGroup, UILayout, Operator, Material
 from bpy.props import StringProperty
 from pathlib import Path
-from mathutils import Vector
+from mathutils import Vector, Color
 from dataclasses import dataclass
 
 from .utility import Zelda_Panel
 from ..utility import PluginError, VecFx32, prop_split, yUpToZUp
+from ..materials import get_new_material_color
 
 
 class ZCBHeader:
@@ -92,15 +94,26 @@ class ZCBNormals:
 class ZCBPolyClasses:
     fmt = "<I"
 
+    class Entry:
+        def __init__(self, value: int):
+            self.value = value
+            self.material: Material | None = None
+
+        def create_material(self, index: int):
+            color = Color((1, 1, 1))
+            color.hsv = (random.random(), 0.5, 0.5)
+            self.material = get_new_material_color(f"mat_zcb_plcb_{index}_0x{self.value:08X}", color[:] + (0.5,))
+            self.material.fastds.zelda.polyclass.raw_data = f"0x{self.value:08X}"
+
     def __init__(self, raw_data: bytes, header: ZCBSectionHeader):
         self.header = header
         self.raw_data = raw_data[0x0C : self.header.size]
-        self.entries: list[int] = []
+        self.entries: list[ZCBPolyClasses.Entry] = []
 
         offset = 0x00
         for _ in range(header.num_entries):
-            entry: int = struct.unpack(ZCBPolyClasses.fmt, self.raw_data[offset : offset + 0x04])
-            self.entries.append(entry)
+            entry: int = struct.unpack(ZCBPolyClasses.fmt, self.raw_data[offset : offset + 0x04])[0]
+            self.entries.append(ZCBPolyClasses.Entry(entry))
             offset += 0x04
 
     def is_valid(self):
@@ -240,7 +253,18 @@ class Zelda_DoImportZCB(Operator):
         new_mesh = bpy.data.meshes.new(col_name)
         new_obj = bpy.data.objects.new(col_name, new_mesh)
         bpy.context.scene.collection.objects.link(new_obj)
+
+        for i, entry in enumerate(file.polyclasses.entries):
+            if entry.material is None:
+                entry.create_material(i)
+
+            new_mesh.materials.append(entry.material)
+
         new_mesh.from_pydata(vertices=file.vertices.entries, edges=[], faces=file.triangles.get_indices())
+
+        assert len(new_mesh.polygons) == len(file.triangles.entries), "wrong list lengths"
+        for i in range(len(new_mesh.polygons)):
+            new_mesh.polygons[i].material_index = file.triangles.entries[i].index_polyclass
 
         self.report({"INFO"}, "Success!")
         return {"FINISHED"}
@@ -301,10 +325,20 @@ class Zelda_ZCBPanel(Zelda_Panel):
         assert layout is not None
 
         zcb_import: Zelda_ZCBImportSettings = context.scene.fastds.zelda.importers.zcb
-        zcb_import.draw_props(layout)
+        zcb_import.draw_props(layout.column())
 
         zcb_export: Zelda_ZCBExportSettings = context.scene.fastds.zelda.exporters.zcb
-        zcb_export.draw_props(layout)
+        zcb_export.draw_props(layout.column())
+
+
+class Zelda_PolyClassProperties(PropertyGroup):
+    raw_data: StringProperty(default="0x00000000")
+
+    def draw_props(self, layout: UILayout):
+        layout = layout.box()
+        layout.box().label(text="Polygon Class Settings")
+
+        prop_split(layout, self, "raw_data", "Raw Data")
 
 
 zelda_ops_to_register = [

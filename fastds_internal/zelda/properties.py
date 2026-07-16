@@ -2,7 +2,7 @@ from bpy.types import PropertyGroup, UILayout
 from bpy.props import EnumProperty, PointerProperty
 
 from ..utility import prop_split
-from .zcb import Zelda_ZCBImportSettings, Zelda_ZCBExportSettings
+from .zcb import Zelda_ZCBImportSettings, Zelda_ZCBExportSettings, Zelda_PolyClassProperties
 
 
 class Zelda_ImportProperties(PropertyGroup):
@@ -30,10 +30,22 @@ class Zelda_SceneProperties(PropertyGroup):
         prop_split(layout, self, "game", "Game")
 
 
+class Zelda_MaterialProperties(PropertyGroup):
+    # material.fastds.zelda.
+
+    polyclass: PointerProperty(type=Zelda_PolyClassProperties)
+
+    def draw_props(self, layout: UILayout):
+        polyclass: Zelda_PolyClassProperties = self.polyclass
+        polyclass.draw_props(layout)
+
+
 zelda_props_to_register = [
     Zelda_ZCBImportSettings,
     Zelda_ZCBExportSettings,
     Zelda_ImportProperties,
     Zelda_ExportProperties,
+    Zelda_PolyClassProperties,
     Zelda_SceneProperties,
+    Zelda_MaterialProperties,
 ]

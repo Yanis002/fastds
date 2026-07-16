@@ -43,7 +43,7 @@ class FastDS_SettingsPanel(FastDS_Panel):
         assert layout is not None
 
         fastds: FastDS_SceneProperties = context.scene.fastds
-        fastds.draw_props(layout)
+        fastds.draw_props(layout.column())
 
 
 panels_to_register = [
