@@ -1,8 +1,6 @@
-from typing import Any
-from blf import size
 import struct
 
-from dataclasses import dataclass
+from typing import Any
 from pathlib import Path
 from bpy.props import StringProperty
 from bpy.types import PropertyGroup, UILayout, Operator

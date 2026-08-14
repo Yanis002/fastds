@@ -2,6 +2,11 @@ line-length = 125
 indent-width = 4
 target-version = "py314"
 
+extend-exclude = [
+    "ndspy",
+    "updater",
+]
+
 [lint]
 select = ["E4", "E7", "E9", "F"]
 ignore = []
@@ -18,4 +23,5 @@ line-ending = "auto"
 
 exclude = [
     "ndspy",
+    "updater",
 ]
