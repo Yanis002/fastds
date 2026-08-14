@@ -73,7 +73,7 @@ class G3d_NameList_Header:
         self.names: list[str] = []
         for i in range(max):
             offset = i * 0x10
-            self.names.append(struct.unpack("16s", data[offset : offset + 0x10])[0].decode("utf-8"))
+            self.names.append(struct.unpack("16s", data[offset : offset + 0x10])[0].decode("utf-8").replace("\x00", ""))
 
 
 class G3d_NameList:
@@ -110,6 +110,9 @@ class G3d_NameList:
             for i in range(self.num_elmnts):
                 offset = self.ofs_header + 0x04 + i * 0x04
                 self.entries.append(cls(self.raw_data[offset : offset + 0x04]))
+
+    def get_name(self, index: int):
+        return self.header.names[index]
 
 
 class G3d_UnkStructBoneList:
@@ -273,6 +276,113 @@ class G3d_VertexMesh:
 
                 # go to the next command data, or the next command bytes if it's the 4th command
                 offset += size
+
+    def process_commands(self):
+        mesh_kind = -1
+        cur_normal: tuple[int | float, int | float, int | float] | None = None
+        self.cur_vertex: tuple[int | float, int | float, int | float] = (0.0, 0.0, 0.0)
+
+        # adapted from https://github.com/scurest/apicula/blob/master/src/util/fixed.rs
+        def fix32(x: int, sign_bits: int, int_bits: int, frac_bits: int) -> float:
+            assert sign_bits <= 1
+            assert int_bits + frac_bits > 0
+            assert sign_bits + int_bits + frac_bits <= 32
+
+            x = x & ((1 << (sign_bits + int_bits + frac_bits)) - 1)
+
+            if sign_bits == 0:
+                y = x
+            else:
+                sign_mask = 1 << (int_bits + frac_bits)
+
+                if x & sign_mask != 0:
+                    y = float(x - (1 << (sign_bits + int_bits + frac_bits)))
+                else:
+                    y = x
+
+            return y * (0.5**frac_bits)
+
+        def fix16(x: int, sign_bits: int, int_bits: int, frac_bits: int) -> float:
+            assert sign_bits + int_bits + frac_bits <= 16
+            return fix32(x, sign_bits, int_bits, frac_bits)
+
+        def bits(val: int, start: int, end: int) -> int:
+            return (val >> start) & ((1 << (end - start)) - 1)
+
+        normals: list[tuple[int | float, int | float, int | float]] = []
+        vertices: list[tuple[int | float, int | float, int | float]] = []
+        faces: list[list[int | float]] = []
+        p_idx = []
+
+        def push(cmd: GPUCommand, mesh_kind: int, vertex: tuple[int | float, int | float, int | float]):
+            p_idx.append(len(vertices))
+            assert cur_normal is not None, f"trying to process cmd 0x{cmd.kind.value:02X} before the normal"
+            vertices.append(vertex)
+            normals.append(cur_normal)
+            self.cur_vertex = vertex
+
+            assert mesh_kind >= 0 and mesh_kind <= 3, f"unexpected mesh mode {mesh_kind}"
+            count = len(p_idx)
+            match mesh_kind:
+                case 0:
+                    if count % 3 == 0:
+                        faces.append([p_idx[-3], p_idx[-2], p_idx[-1]])
+                case 1:
+                    if count % 4 == 0:
+                        faces.append([p_idx[-4], p_idx[-3], p_idx[-2], p_idx[-1]])
+                case 2:
+                    if count >= 3:
+                        if count % 2 == 1:
+                            faces.append([p_idx[-3], p_idx[-2], p_idx[-1]])
+                        else:
+                            faces.append([p_idx[-2], p_idx[-3], p_idx[-1]])
+                case 3:
+                    if count >= 4 and count % 2 == 0:
+                        faces.append([p_idx[-4], p_idx[-3], p_idx[-1], p_idx[-2]])
+
+        # adapted from https://github.com/scurest/apicula/blob/master/src/nds/gpu_cmds.rs
+        for cmd in self.commands:
+            match cmd.kind:
+                case GPUCommandType.BEGIN_VTXS:
+                    mesh_kind = cmd.data[0] & 0x03
+                    p_idx.clear()
+                case GPUCommandType.NORMAL:
+                    x = fix32(bits(cmd.data[0], 0, 10), 1, 0, 9)
+                    y = fix32(bits(cmd.data[0], 10, 20), 1, 0, 9)
+                    z = fix32(bits(cmd.data[0], 20, 30), 1, 0, 9)
+                    cur_normal = (x, y, z)
+                case GPUCommandType.VTX_16:
+                    x = fix16(bits(cmd.data[0], 0, 16), 1, 3, 12)
+                    y = fix16(bits(cmd.data[0], 16, 32), 1, 3, 12)
+                    z = fix16(bits(cmd.data[1], 0, 16), 1, 3, 12)
+                    push(cmd, mesh_kind, (x, y, z))
+                case GPUCommandType.VTX_10:
+                    x = fix16(bits(cmd.data[0], 0, 10), 1, 3, 6)
+                    y = fix16(bits(cmd.data[0], 10, 20), 1, 3, 6)
+                    z = fix16(bits(cmd.data[0], 20, 30), 1, 3, 6)
+                    push(cmd, mesh_kind, (x, y, z))
+                case GPUCommandType.VTX_XY:
+                    x = fix16(bits(cmd.data[0], 0, 16), 1, 3, 12)
+                    y = fix16(bits(cmd.data[0], 16, 32), 1, 3, 12)
+                    z = self.cur_vertex[2]
+                    push(cmd, mesh_kind, (x, y, z))
+                case GPUCommandType.VTX_XZ:
+                    x = fix16(bits(cmd.data[0], 0, 16), 1, 3, 12)
+                    y = self.cur_vertex[1]
+                    z = fix16(bits(cmd.data[0], 16, 32), 1, 3, 12)
+                    push(cmd, mesh_kind, (x, y, z))
+                case GPUCommandType.VTX_YZ:
+                    x = self.cur_vertex[0]
+                    y = fix16(bits(cmd.data[0], 0, 16), 1, 3, 12)
+                    z = fix16(bits(cmd.data[0], 16, 32), 1, 3, 12)
+                    push(cmd, mesh_kind, (x, y, z))
+                case GPUCommandType.VTX_DIFF:
+                    x = 0.125 * fix16(bits(cmd.data[0], 0, 10), 1, 0, 9)
+                    y = 0.125 * fix16(bits(cmd.data[0], 10, 20), 1, 0, 9)
+                    z = 0.125 * fix16(bits(cmd.data[0], 20, 30), 1, 0, 9)
+                    push(cmd, mesh_kind, (self.cur_vertex[0] + x, self.cur_vertex[1] + y, self.cur_vertex[2] + z))
+
+        return vertices, normals, faces
 
 
 class G3d_Model_14:

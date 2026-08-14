@@ -1,3 +1,4 @@
+import bpy
 import struct
 
 from pathlib import Path
@@ -6,7 +7,7 @@ from bpy.types import PropertyGroup, UILayout, Operator
 
 from .utility import Zelda_Panel
 from ..utility import PluginError, BinaryFile, prop_split, validate_binary_path
-from ..gfx import G3d_NameList, G3d_Model
+from ..gfx import G3d_NameList, G3d_Model, G3d_VertexMesh
 
 
 # based on ST decomp, shouldn't be any different on PH
@@ -75,8 +76,6 @@ class NSBMDFile(BinaryFile):
         if self.header.offset_TEX0 is not None:
             self.textures = None  # TBD
 
-        pass
-
 
 class Zelda_DoImportNSBMD(Operator):
     bl_idname = "scene.zelda_nsbmd_import"
@@ -88,9 +87,24 @@ class Zelda_DoImportNSBMD(Operator):
     def execute(self, context):
         path = Path(self.path).resolve()
         assert path.exists(), "unexpected error"
-        NSBMDFile(path, path.read_bytes())
 
-        self.report({"INFO"}, "Not implemented yet.")
+        file = NSBMDFile(path, path.read_bytes())
+
+        models: list[G3d_Model] = file.models.list.entries
+        for i, model in enumerate(models):
+            model_name = f"model_{file.models.list.get_name(i)}"
+            meshes: list[G3d_VertexMesh] = model.poly_list.entries
+
+            for j, mesh in enumerate(meshes):
+                mesh_name = f"{model_name}_mesh_{model.poly_list.get_name(j)}"
+                vertices, normals, faces = mesh.process_commands()
+
+                new_mesh = bpy.data.meshes.new(mesh_name)
+                new_obj = bpy.data.objects.new(mesh_name, new_mesh)
+                context.scene.collection.objects.link(new_obj)
+                new_mesh.from_pydata(vertices=vertices, edges=[], faces=faces)
+
+        self.report({"INFO"}, "Success!")
         return {"FINISHED"}
 
 

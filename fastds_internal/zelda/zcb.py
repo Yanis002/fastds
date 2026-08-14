@@ -282,7 +282,7 @@ class Zelda_DoImportZCB(Operator):
 
     def execute(self, context: Context):
         def do_import(file: ZCBFile, prefix: str):
-            col_name = f"{prefix}_collision"
+            col_name = f"collision_{prefix}"
             new_mesh = bpy.data.meshes.new(col_name)
             new_obj = bpy.data.objects.new(col_name, new_mesh)
             context.scene.collection.objects.link(new_obj)
