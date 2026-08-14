@@ -8,10 +8,8 @@ from pathlib import Path
 from mathutils import Vector, Color
 from dataclasses import dataclass
 
-from ...ndspy import lz10 as LZSS, narc
-
 from .utility import Zelda_Panel, get_scene_enum, get_extract_dir
-from ..utility import PluginError, VecFx32, prop_split, yUpToZUp
+from ..utility import BinaryFile, PluginError, VecFx32, prop_split, validate_binary_path, get_lzss_file, yUpToZUp
 from ..materials import get_new_material_color
 
 
@@ -208,20 +206,9 @@ class ZCBGrid:
         return self.header.type == "GRDB"
 
 
-class ZCBFile:
-    fmt_header = "<4s4sII"
-
+class ZCBFile(BinaryFile):
     def __init__(self, path: Path | None, raw_data: bytes | None):
-        self.path = path.resolve() if path is not None else None
-
-        if self.path is not None:
-            if not self.path.exists():
-                raise PluginError("ERROR: invalid ZCB file path.")
-            self.raw_data = self.path.read_bytes()
-        elif raw_data is not None:
-            self.raw_data = raw_data
-        else:
-            raise PluginError("ERROR: unexpected issue occurred.")
+        super().__init__(path, raw_data)
 
         self.header = ZCBHeader(self.raw_data[0x00:0x10])
 
@@ -285,26 +272,6 @@ class ZCBFile:
             )
 
 
-def get_zcb(lzss_path: Path):
-    assert lzss_path.exists()
-
-    lzss_bytes = LZSS.decompressFromFile(lzss_path)
-    archive = narc.NARC(lzss_bytes)
-
-    found_file = None
-    filename = None
-    for i, file in enumerate(archive.files):
-        if file.startswith(b"BLCM1BCZ"):
-            found_file = file
-            filename = str(archive.filenames[i])
-            break
-
-    if found_file is not None and filename is not None:
-        return lzss_bytes, archive, found_file, filename
-
-    raise ValueError("ERROR: unexpected result")
-
-
 class Zelda_DoImportZCB(Operator):
     bl_idname = "scene.zelda_zcb_import"
     bl_label = "Import ZCB"
@@ -340,7 +307,7 @@ class Zelda_DoImportZCB(Operator):
             assert map_dir.exists()
 
             for lzss_path in map_dir.rglob("map*.bin"):
-                lzss_bytes, archive, zcb_data, zcb_filename = get_zcb(lzss_path)
+                lzss_bytes, archive, zcb_data, zcb_filename = get_lzss_file(lzss_path, b"BLCM1BCZ")
 
                 file = ZCBFile(None, zcb_data)
                 do_import(file, lzss_path.stem)
@@ -378,13 +345,7 @@ class Zelda_ZCBImportSettings(PropertyGroup):
 
         if self.scene == "Custom":
             prop_split(layout, self, "path", "Path")
-
-            path = Path(self.path).resolve()
-
-            if not path.exists():
-                layout.label(text="This path doesn't exist.", icon="ERROR")
-            elif len(self.path) > 0 and path.read_bytes()[0x00:0x08] != b"BLCM1BCZ":
-                layout.label(text="Invalid ZCB file.", icon="ERROR")
+            validate_binary_path(layout, Path(self.path).resolve(), b"BLCM1BCZ", "ZCB")
 
         import_op = layout.operator(Zelda_DoImportZCB.bl_idname)
 
@@ -420,7 +381,7 @@ class Zelda_ZCBExportSettings(PropertyGroup):
 
 class Zelda_ZCBPanel(Zelda_Panel):
     bl_idname = "ZELDA_PT_zcb"
-    bl_label = "Collision"
+    bl_label = "Collision (.zcb)"
 
     def draw(self, context):
         layout = self.layout

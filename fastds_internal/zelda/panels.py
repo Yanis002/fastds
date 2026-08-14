@@ -1,6 +1,7 @@
 from bpy.types import Panel
 
 from .properties import Zelda_SceneProperties, Zelda_MaterialProperties
+from .nsbmd import Zelda_NSBMDPanel
 from .zcb import Zelda_ZCBPanel
 from .utility import Zelda_Panel
 
@@ -40,5 +41,6 @@ class Zelda_MaterialPanel(Panel):
 zelda_panels_to_register = [
     Zelda_WorkspacePanel,
     Zelda_ZCBPanel,
+    Zelda_NSBMDPanel,
     Zelda_MaterialPanel,
 ]

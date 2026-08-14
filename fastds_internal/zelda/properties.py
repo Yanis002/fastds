@@ -3,14 +3,17 @@ from bpy.props import EnumProperty, PointerProperty, StringProperty, BoolPropert
 
 from ..utility import prop_split
 from .zcb import Zelda_ZCBImportSettings, Zelda_ZCBExportSettings, Zelda_PolyClassProperties
+from .nsbmd import Zelda_NSBMDImportSettings, Zelda_NSBMDExportSettings
 
 
 class Zelda_ImportProperties(PropertyGroup):
     zcb: PointerProperty(type=Zelda_ZCBImportSettings)
+    nsbmd: PointerProperty(type=Zelda_NSBMDImportSettings)
 
 
 class Zelda_ExportProperties(PropertyGroup):
     zcb: PointerProperty(type=Zelda_ZCBExportSettings)
+    nsbmd: PointerProperty(type=Zelda_NSBMDExportSettings)
 
 
 enum_zelda_games = [
@@ -69,6 +72,8 @@ class Zelda_MaterialProperties(PropertyGroup):
 zelda_props_to_register = [
     Zelda_ZCBImportSettings,
     Zelda_ZCBExportSettings,
+    Zelda_NSBMDImportSettings,
+    Zelda_NSBMDExportSettings,
     Zelda_ImportProperties,
     Zelda_ExportProperties,
     Zelda_PolyClassProperties,

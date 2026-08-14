@@ -6,6 +6,7 @@ from bpy.types import Operator, Context, UILayout
 from ..utility import PluginError, get_enum_name
 from .utility import get_scene_enum
 from .zcb import Zelda_DoImportZCB, Zelda_DoExportZCB
+from .nsbmd import Zelda_DoImportNSBMD, Zelda_DoExportNSBMD
 
 
 class Zelda_SearchSceneOperator(Operator):
@@ -51,4 +52,6 @@ zelda_ops_to_register = [
     Zelda_SearchSceneOperator,
     Zelda_DoImportZCB,
     Zelda_DoExportZCB,
+    Zelda_DoImportNSBMD,
+    Zelda_DoExportNSBMD,
 ]
