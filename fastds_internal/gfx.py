@@ -1,9 +1,10 @@
 import struct
 
+from mathutils import Vector
 from typing import Any
 from dataclasses import dataclass
 from enum import IntEnum
-from .utility import fx32_to_float
+from .utility import fx32_to_float, yUpToZUp
 
 
 class GPUCommandType(IntEnum):
@@ -310,14 +311,14 @@ class G3d_VertexMesh:
             return (val >> start) & ((1 << (end - start)) - 1)
 
         normals: list[tuple[int | float, int | float, int | float]] = []
-        vertices: list[tuple[int | float, int | float, int | float]] = []
+        vertices: list[Vector] = []
         faces: list[list[int | float]] = []
         p_idx = []
 
         def push(cmd: GPUCommand, mesh_kind: int, vertex: tuple[int | float, int | float, int | float]):
-            p_idx.append(len(vertices))
             assert cur_normal is not None, f"trying to process cmd 0x{cmd.kind.value:02X} before the normal"
-            vertices.append(vertex)
+            p_idx.append(len(vertices))
+            vertices.append(yUpToZUp @ Vector(vertex))
             normals.append(cur_normal)
             self.cur_vertex = vertex
 
