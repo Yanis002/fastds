@@ -382,6 +382,10 @@ class G3d_VertexMesh:
                     y = 0.125 * fix16(bits(cmd.data[0], 10, 20), 1, 0, 9)
                     z = 0.125 * fix16(bits(cmd.data[0], 20, 30), 1, 0, 9)
                     push(cmd, mesh_kind, (self.cur_vertex[0] + x, self.cur_vertex[1] + y, self.cur_vertex[2] + z))
+                case GPUCommandType.NOP | GPUCommandType.END_VTXS:
+                    pass
+                case _:
+                    print(f"WARNING: unimplemented mesh command ({cmd.kind.name})")
 
         return vertices, normals, faces
 
