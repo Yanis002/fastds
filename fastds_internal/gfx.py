@@ -247,7 +247,7 @@ class G3d_VertexMesh:
         self.unk_0C: int = raw_unk_0C  # size of command list?
 
         offset = 0x00
-        data = self.raw_data[0x10:]
+        data = self.raw_data[self.unk_08:]
         self.commands: list[GPUCommand] = []
 
         # the command list in the binary is a set of 4 command bytes followed by the data correspond to the 4 commands
