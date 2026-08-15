@@ -315,11 +315,13 @@ class G3d_VertexMesh:
         faces: list[list[int | float]] = []
         p_idx = []
 
-        def push(cmd: GPUCommand, mesh_kind: int, vertex: tuple[int | float, int | float, int | float]):
-            assert cur_normal is not None, f"trying to process cmd 0x{cmd.kind.value:02X} before the normal"
+        def push(mesh_kind: int, vertex: tuple[int | float, int | float, int | float]):
             p_idx.append(len(vertices))
             vertices.append(yUpToZUp @ Vector(vertex))
-            normals.append(cur_normal)
+
+            if cur_normal is not None:
+                normals.append(cur_normal)
+
             self.cur_vertex = vertex
 
             assert mesh_kind >= 0 and mesh_kind <= 3, f"unexpected mesh mode {mesh_kind}"
@@ -356,32 +358,32 @@ class G3d_VertexMesh:
                     x = fix16(bits(cmd.data[0], 0, 16), 1, 3, 12)
                     y = fix16(bits(cmd.data[0], 16, 32), 1, 3, 12)
                     z = fix16(bits(cmd.data[1], 0, 16), 1, 3, 12)
-                    push(cmd, mesh_kind, (x, y, z))
+                    push(mesh_kind, (x, y, z))
                 case GPUCommandType.VTX_10:
                     x = fix16(bits(cmd.data[0], 0, 10), 1, 3, 6)
                     y = fix16(bits(cmd.data[0], 10, 20), 1, 3, 6)
                     z = fix16(bits(cmd.data[0], 20, 30), 1, 3, 6)
-                    push(cmd, mesh_kind, (x, y, z))
+                    push(mesh_kind, (x, y, z))
                 case GPUCommandType.VTX_XY:
                     x = fix16(bits(cmd.data[0], 0, 16), 1, 3, 12)
                     y = fix16(bits(cmd.data[0], 16, 32), 1, 3, 12)
                     z = self.cur_vertex[2]
-                    push(cmd, mesh_kind, (x, y, z))
+                    push(mesh_kind, (x, y, z))
                 case GPUCommandType.VTX_XZ:
                     x = fix16(bits(cmd.data[0], 0, 16), 1, 3, 12)
                     y = self.cur_vertex[1]
                     z = fix16(bits(cmd.data[0], 16, 32), 1, 3, 12)
-                    push(cmd, mesh_kind, (x, y, z))
+                    push(mesh_kind, (x, y, z))
                 case GPUCommandType.VTX_YZ:
                     x = self.cur_vertex[0]
                     y = fix16(bits(cmd.data[0], 0, 16), 1, 3, 12)
                     z = fix16(bits(cmd.data[0], 16, 32), 1, 3, 12)
-                    push(cmd, mesh_kind, (x, y, z))
+                    push(mesh_kind, (x, y, z))
                 case GPUCommandType.VTX_DIFF:
                     x = 0.125 * fix16(bits(cmd.data[0], 0, 10), 1, 0, 9)
                     y = 0.125 * fix16(bits(cmd.data[0], 10, 20), 1, 0, 9)
                     z = 0.125 * fix16(bits(cmd.data[0], 20, 30), 1, 0, 9)
-                    push(cmd, mesh_kind, (self.cur_vertex[0] + x, self.cur_vertex[1] + y, self.cur_vertex[2] + z))
+                    push(mesh_kind, (self.cur_vertex[0] + x, self.cur_vertex[1] + y, self.cur_vertex[2] + z))
                 case GPUCommandType.NOP | GPUCommandType.END_VTXS:
                     pass
                 case _:
