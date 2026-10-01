@@ -8,6 +8,8 @@ WIP!
 
 ## Developement
 
+Anyone can open a pull request, but please be aware that we do not accept contributions that are primarily AI-generated. Your PR will be closed if it contains obvious signs of machine-generated code. It is your responsibility to check the code that you are submitting and make sure it is readable and feels like something a human programmer would write.
+
 We recommend using Astral's `ty` and `ruff` for linting/formatting Python files.
 
 ## Credits
