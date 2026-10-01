@@ -2,7 +2,7 @@ from bpy.types import Panel
 
 from ..updater import addon_updater_ops
 from .properties import FastDS_SceneProperties
-from .zelda.panels import zelda_panels_to_register
+from .zelda.properties import zelda_panels_to_register
 
 
 class FastDS_Panel(Panel):

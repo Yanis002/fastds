@@ -2,9 +2,9 @@ from bpy.types import PropertyGroup, UILayout, Context
 from bpy.props import EnumProperty, PointerProperty, StringProperty, BoolProperty
 
 from ..utility import prop_split
-from .zcb import Zelda_ZCBImportSettings, Zelda_ZCBExportSettings, Zelda_PolyClassProperties
-from .nsbmd import Zelda_NSBMDImportSettings, Zelda_NSBMDExportSettings
-
+from .zcb import Zelda_ZCBImportSettings, Zelda_ZCBExportSettings, Zelda_PolyClassProperties, Zelda_ZCBPanel
+from .nsbmd import Zelda_NSBMDImportSettings, Zelda_NSBMDExportSettings, Zelda_NSBMDPanel
+from .panels import Zelda_WorkspacePanel, Zelda_MaterialPanel
 
 class Zelda_ImportProperties(PropertyGroup):
     zcb: PointerProperty(type=Zelda_ZCBImportSettings)
@@ -79,4 +79,12 @@ zelda_props_to_register = [
     Zelda_PolyClassProperties,
     Zelda_SceneProperties,
     Zelda_MaterialProperties,
+]
+
+# required to be here to avoid circular imports
+zelda_panels_to_register = [
+    Zelda_WorkspacePanel,
+    Zelda_ZCBPanel,
+    Zelda_NSBMDPanel,
+    Zelda_MaterialPanel,
 ]

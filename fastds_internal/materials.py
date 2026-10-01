@@ -1,6 +1,7 @@
 import bpy
 
-from bpy.types import Node
+from bpy.props import PointerProperty
+from bpy.types import Node, PropertyGroup
 
 
 def get_new_material_color(name: str, color: tuple | None = None):
@@ -21,3 +22,14 @@ def get_new_material_color(name: str, color: tuple | None = None):
     )
 
     return new_mat
+
+
+class MaterialProperties(PropertyGroup):
+    """Properties in material.fastds.mat (bpy.types.Material)"""
+
+    pass
+
+
+material_props_to_register = [
+    MaterialProperties,
+]

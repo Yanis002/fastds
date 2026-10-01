@@ -2,6 +2,7 @@ from bpy.types import PropertyGroup, UILayout
 from bpy.props import EnumProperty, PointerProperty
 
 from .zelda.properties import Zelda_SceneProperties, Zelda_MaterialProperties, zelda_props_to_register
+from .materials import MaterialProperties, material_props_to_register
 from .utility import prop_split, PointerPropertyRegisterInfo
 
 # game mode picker
@@ -23,10 +24,11 @@ class FastDS_SceneProperties(PropertyGroup):
 class FastDS_MaterialProperties(PropertyGroup):
     """Properties in material.fastds (bpy.types.Material)"""
 
+    mat: PointerProperty(name="Material Properties", type=MaterialProperties)
     zelda: PointerProperty(name="Zelda Material Properties", type=Zelda_MaterialProperties)
 
 
-props_to_register = zelda_props_to_register + [
+props_to_register = material_props_to_register + zelda_props_to_register + [
     FastDS_SceneProperties,
     FastDS_MaterialProperties,
 ]
